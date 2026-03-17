@@ -2,174 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { generateTodayMealPlan, generateRemainingWeekMealPlan, regenerateMeal } from '../services/gemini';
 import { MealPlan, Meal } from '../types';
+import { loadingMessages, generationHeaders } from '../constants';
+import { MealCard, scaleIngredient } from './MealCard';
 import { Loader2, ShoppingCart, Calendar, Heart, Users, Moon, Sun, Search, RefreshCw, Settings2, Trash2, Share2, Soup } from 'lucide-react';
-
-const scaleIngredient = (ingredient: string, servings: number) => {
-  const numRegex = /(\d+(?:\.\d+)?(?:[ \-]\d+\/\d+|\/\d+)?)/;
-  const match = ingredient.match(numRegex);
-  
-  if (!match) return ingredient;
-  
-  const numStr = match[0];
-  const offset = match.index!;
-  const before = ingredient.slice(0, offset);
-  const after = ingredient.slice(offset + numStr.length);
-  const afterTrimmed = after.trim();
-  
-  // Special exclusions (temperatures, times, percentages)
-  if (after.toLowerCase().match(/^\s*(°|c\b|f\b|min|hour|sec|%)/)) {
-    if (servings === 1) return ingredient;
-    let num = parseFloat(numStr.trim());
-    if (isNaN(num)) return ingredient;
-    const scaledNum = (num * servings).toLocaleString('en-GB', { maximumFractionDigits: 2 });
-    return `${before}${scaledNum}${after}`;
-  }
-
-  let num = 0;
-  const cleanNumStr = numStr.trim();
-  if (cleanNumStr.includes('/')) {
-    if (cleanNumStr.includes(' ') || cleanNumStr.includes('-')) {
-      const parts = cleanNumStr.split(/[ \-]/);
-      const whole = parseFloat(parts[0]);
-      const [n, d] = parts[1].split('/');
-      num = whole + (parseFloat(n) / parseFloat(d));
-    } else {
-      const [n, d] = cleanNumStr.split('/');
-      num = parseFloat(n) / parseFloat(d);
-    }
-  } else {
-    num = parseFloat(cleanNumStr);
-  }
-  
-  if (isNaN(num)) return ingredient;
-  
-  const scaledNum = (num * servings).toLocaleString('en-GB', { maximumFractionDigits: 2 });
-  
-  // Units that should NOT have ' x '
-  const units = ['g', 'ml', 'kg', 'l', 'tsp', 'tbsp', 'cm', 'mm', 'oz', 'lb', 'cup', 'cups', 'slice', 'slices', 'clove', 'cloves', 'pinch', 'pinches', 'handful', 'handfuls', 'bunch', 'bunches'];
-  const unitMatch = afterTrimmed.toLowerCase().match(/^([a-z]+)/);
-  const foundUnit = unitMatch ? unitMatch[1] : '';
-  
-  if (units.includes(foundUnit)) {
-    // It's a measurement. Ensure at least one space if it's not already joined like "50g"
-    if (after.startsWith(' ')) {
-      return `${before}${scaledNum} ${afterTrimmed}`;
-    } else {
-      return `${before}${scaledNum}${afterTrimmed}`;
-    }
-  }
-  
-  // Not a measurement. Use " x " format.
-  if (afterTrimmed.startsWith('x ')) {
-    return `${before}${scaledNum} ${afterTrimmed}`;
-  } else if (afterTrimmed.length > 0) {
-    return `${before}${scaledNum} x ${afterTrimmed}`;
-  }
-  
-  return `${before}${scaledNum}${after}`;
-};
-
-const MealCard = ({ 
-  meal, 
-  subtitle, 
-  index = 0,
-  servings,
-  onUpdateServings,
-  isFavourite,
-  toggleFavourite,
-  onRegenerate,
-  isRegenerating
-}: { 
-  meal: Meal, 
-  subtitle?: string, 
-  index?: number, 
-  servings: number,
-  onUpdateServings: (delta: number) => void,
-  isFavourite: boolean,
-  toggleFavourite: (meal: Meal) => void,
-  onRegenerate?: (meal: Meal) => void,
-  isRegenerating?: boolean,
-  key?: React.Key
-}) => {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.1 }}
-      className="bg-vintage-card dark:bg-vintage-card-dark rounded-2xl border border-vintage-teal/20 dark:border-vintage-teal-dark/20 p-6 shadow-sm"
-    >
-      <div className="flex flex-col sm:flex-row justify-between items-start mb-4 gap-4">
-        <div>
-          <span className="inline-block px-3 py-1 bg-vintage-bg dark:bg-vintage-bg-dark text-vintage-teal dark:text-vintage-teal-dark text-xs font-bold rounded-full mb-2 uppercase tracking-wider">
-            {subtitle ? `${subtitle} • ${meal.type}` : meal.type}
-          </span>
-          <h3 className="text-2xl font-display text-vintage-red dark:text-vintage-red-dark tracking-wide">{meal.name}</h3>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 bg-vintage-bg/50 dark:bg-vintage-bg-dark/50 p-1 rounded-lg border border-vintage-teal/20 dark:border-vintage-teal-dark/20">
-            <button 
-              onClick={() => onUpdateServings(-1)}
-              className="w-7 h-7 flex items-center justify-center rounded bg-vintage-card dark:bg-vintage-card-dark border border-vintage-teal/20 dark:border-vintage-teal-dark/30 hover:bg-vintage-bg dark:hover:bg-vintage-bg-dark text-vintage-teal dark:text-vintage-teal-dark transition-colors text-sm"
-            >-</button>
-            <div className="flex items-center gap-1 px-1">
-              <Users className="w-3.5 h-3.5 text-vintage-teal/70 dark:text-vintage-teal-dark/70" />
-              <span className="font-bold text-vintage-red dark:text-vintage-red-dark w-4 text-center text-sm">{servings}</span>
-            </div>
-            <button 
-              onClick={() => onUpdateServings(1)}
-              className="w-7 h-7 flex items-center justify-center rounded bg-vintage-card dark:bg-vintage-card-dark border border-vintage-teal/20 dark:border-vintage-teal-dark/30 hover:bg-vintage-bg dark:hover:bg-vintage-bg-dark text-vintage-teal dark:text-vintage-teal-dark transition-colors text-sm"
-            >+</button>
-          </div>
-          <span className="text-sm text-vintage-teal/70 dark:text-vintage-teal-dark/70 font-bold bg-vintage-bg/50 dark:bg-vintage-bg-dark/50 px-3 py-1 rounded-lg">
-            {meal.prepTime}
-          </span>
-          <button 
-            onClick={() => toggleFavourite(meal)}
-            className="text-vintage-red dark:text-vintage-red-dark hover:bg-vintage-red/10 dark:hover:bg-vintage-red-dark/10 p-2 rounded-full transition-colors"
-            title={isFavourite ? "Remove from favourites" : "Add to favourites"}
-          >
-            <Heart className="w-5 h-5" fill={isFavourite ? "currentColor" : "none"} />
-          </button>
-          {onRegenerate && (
-            <button 
-              onClick={() => onRegenerate(meal)}
-              disabled={isRegenerating}
-              className="text-vintage-teal dark:text-vintage-teal-dark hover:bg-vintage-teal/10 dark:hover:bg-vintage-teal-dark/10 p-2 rounded-full transition-colors disabled:opacity-50"
-              title="Regenerate this meal"
-            >
-              <RefreshCw className={`w-5 h-5 ${isRegenerating ? 'animate-spin' : ''}`} />
-            </button>
-          )}
-        </div>
-      </div>
-      
-      <p className="text-vintage-teal dark:text-vintage-teal-dark mb-6 leading-relaxed">{meal.description}</p>
-      
-      <div>
-        <h4 className="text-sm font-display text-vintage-red dark:text-vintage-red-dark mb-3 uppercase tracking-wider">Ingredients</h4>
-        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {meal.ingredients.map((ingredient, i) => (
-            <li key={i} className="flex items-center gap-2 text-vintage-teal dark:text-vintage-teal-dark text-sm">
-              <div className="w-1.5 h-1.5 rounded-full bg-vintage-red dark:bg-vintage-red-dark flex-shrink-0" />
-              {scaleIngredient(ingredient, servings)}
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {meal.instructions && meal.instructions.length > 0 && (
-        <div className="mt-6">
-          <h4 className="text-sm font-display text-vintage-red dark:text-vintage-red-dark mb-3 uppercase tracking-wider">Instructions</h4>
-          <ol className="list-decimal list-outside ml-4 space-y-2 text-vintage-teal dark:text-vintage-teal-dark text-sm leading-relaxed">
-            {meal.instructions.map((step, i) => (
-              <li key={i} className="pl-1">{step}</li>
-            ))}
-          </ol>
-        </div>
-      )}
-    </motion.div>
-  );
-};
 
 export default function MealPlanner() {
   const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
@@ -221,64 +56,7 @@ export default function MealPlanner() {
     }
   }, [toast]);
 
-  const loadingMessages = [
-    "Infusing garlic-infused oil...", "Simmering the low FODMAP broth...", "Preheating the oven...",
-    "Sprinkling fresh herbs...", "Tasting the soup...", "Plating your meals...",
-    "Washing the spinach...", "Marinating the firm tofu...", "Slicing the red peppers...",
-    "Dicing the carrots...", "Boiling the basmati rice...", "Roasting the potatoes...",
-    "Grilling the fresh salmon...", "Flipping gluten-free pancakes...", "Whisking the eggs...",
-    "Kneading gluten-free dough...", "Baking the sourdough...", "Melting the butter...",
-    "Sautéing spring onion greens...", "Zesting the lemon...", "Squeezing the limes...",
-    "Peeling the fresh ginger...", "Crushing the walnuts...", "Toasting the pumpkin seeds...",
-    "Blending a berry smoothie...", "Brewing peppermint tea...", "Steaming the bok choy...",
-    "Stir-frying the rice noodles...", "Seasoning the steak...", "Garnishing with parsley...",
-    "Caramelizing the sugar...", "Whipping lactose-free cream...", "Folding the batter...",
-    "Measuring the rice flour...", "Pouring the olive oil...", "Grating the cheddar...",
-    "Sifting the cocoa...", "Slicing the cucumber...", "Tossing the rocket salad...",
-    "Glazing the salmon...", "Poaching the rhubarb...", "Braising the beef...",
-    "Curing the meat...", "Fermenting the sourdough...", "Pickling the cucumbers...",
-    "Smoking the fish...", "Slow-cooking the stew...", "Air-frying the chips...",
-    "Cooling the pie...", "Setting the table...", "Folding the napkins...",
-    "Polishing the glasses...", "Lighting the candles...", "Arranging the flowers...",
-    "Chopping the chives...", "Mashing the potatoes...", "Whisking the vinaigrette...",
-    "Deglazing the pan...", "Reducing the balsamic...", "Blanching the green beans...",
-    "Searing the scallops...", "Poaching the eggs...", "Toasting the gluten-free bread...",
-    "Spreading the peanut butter...", "Drizzling the maple syrup...", "Cracking the black pepper...",
-    "Grinding the sea salt...", "Peeling the kiwi...", "Slicing the strawberries...",
-    "Hullng the strawberries...", "Pitting the olives...", "Shucking the oysters...",
-    "Cleaning the mussels...", "Deveining the prawns...", "Scaling the fish...",
-    "Filleting the trout...", "Deboning the chicken...", "Trussing the turkey...",
-    "Basting the roast...", "Skimming the fat...", "Straining the stock...",
-    "Clarifying the butter...", "Tempering the chocolate...", "Folding in the blueberries...",
-    "Dusting with icing sugar...", "Piping the frosting...", "Glazing the donuts...",
-    "Proofing the yeast...", "Scoring the loaf...", "Steaming the mussels...",
-    "Sautéing the oyster mushrooms...", "Grilling the zucchini...", "Roasting the parsnips...",
-    "Boiling the quinoa...", "Fluffing the couscous...", "Rinsing the lentils...",
-    "Soaking the chia seeds...", "Toasting the pine nuts...", "Roasting the macadamias...",
-    "Slicing the radishes...", "Grating the ginger...", "Zesting the orange...",
-    "Juicing the grapefruit...", "Infusing the rosemary...", "Steeping the chamomile...",
-    "Frothing the lactose-free milk...", "Layering the lasagna...", "Stuffing the peppers...",
-    "Rolling the sushi...", "Wrapping the spring rolls...", "Shaping the meatballs...",
-    "Skewering the kebabs...", "Brushing with egg wash...", "Sprinkling the sesame seeds...",
-    "Garnishing with cilantro...", "Drizzling the sesame oil...", "Whisking the miso...",
-    "Simmering the laksa...", "Stirring the risotto...", "Ladling the soup...",
-    "Shaving the parmesan...", "Crumbling the feta...", "Slicing the mozzarella...",
-    "Toasting the pecans...", "Chopping the peanuts...", "Blending the pesto...",
-    "Whisking the hollandaise...", "Simmering the marinara...", "Reducing the red wine...",
-    "Sautéing the kale..."
-  ];
   const [currentLoadingMsg, setCurrentLoadingMsg] = useState(loadingMessages[0]);
-
-  const generationHeaders = [
-    "Cooking up the rest of your week...",
-    "Simmering your weekly plan...",
-    "Plating your 7-day menu...",
-    "Whisking together your meals...",
-    "Preparing your grocery list...",
-    "Garnishing your week ahead...",
-    "Sautéing your food schedule...",
-    "Baking your budget-friendly plan..."
-  ];
   const [currentGenHeader, setCurrentGenHeader] = useState(generationHeaders[0]);
 
   useEffect(() => {
@@ -323,36 +101,47 @@ export default function MealPlanner() {
   const handleInitialGenerate = async (mode: 'day' | 'week') => {
     setLoading(true);
     setGenerationMode(mode);
+    setToast(null);
+    
     try {
       const todayPlan = await generateTodayMealPlan(todayName, preferences);
       setMealPlan(todayPlan);
+      
       if (todayPlan.days.some(d => d.day === todayName)) {
         setSelectedView(todayName);
       } else if (todayPlan.days.length > 0) {
         setSelectedView(todayPlan.days[0].day);
       }
+      
       setActiveTab('plan');
       setLoading(false);
 
       if (mode === 'week') {
         setIsGeneratingWeek(true);
-        const restOfWeekPlan = await generateRemainingWeekMealPlan(todayPlan, preferences);
-        
-        setMealPlan(prev => {
-          if (!prev) return restOfWeekPlan;
-          const existingDays = new Set(prev.days.map(d => d.day));
-          const newDays = restOfWeekPlan.days.filter(d => !existingDays.has(d.day));
+        try {
+          const restOfWeekPlan = await generateRemainingWeekMealPlan(todayPlan, preferences);
           
-          return {
-            days: [...prev.days, ...newDays],
-            groceryList: restOfWeekPlan.groceryList
-          };
-        });
-        setIsGeneratingWeek(false);
+          setMealPlan(prev => {
+            if (!prev) return restOfWeekPlan;
+            const existingDays = new Set(prev.days.map(d => d.day));
+            const newDays = restOfWeekPlan.days.filter(d => !existingDays.has(d.day));
+            
+            return {
+              days: [...prev.days, ...newDays],
+              groceryList: restOfWeekPlan.groceryList
+            };
+          });
+        } catch (weekError) {
+          console.error("Error generating rest of week:", weekError);
+          setToast({ message: "Daily plan ready, but failed to generate the full week.", type: 'error' });
+        } finally {
+          setIsGeneratingWeek(false);
+        }
       }
     } catch (error) {
       console.error("Error generating meal plan:", error);
-      setToast({ message: "Failed to generate meal plan. Please try again.", type: 'error' });
+      const errorMessage = error instanceof Error ? error.message : "Failed to generate meal plan. Please try again.";
+      setToast({ message: errorMessage, type: 'error' });
       setLoading(false);
       setGenerationMode(null);
       setIsGeneratingWeek(false);
@@ -624,29 +413,26 @@ export default function MealPlanner() {
         
         <div className="max-w-md w-full space-y-6 mb-12 sm:mb-16">
           <motion.button
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             onClick={handleShowFavs}
-            className="w-full bg-vintage-teal hover:bg-vintage-teal/90 text-vintage-bg dark:text-vintage-bg-dark font-display py-4 px-6 rounded-2xl text-xl uppercase tracking-wider shadow-lg hover:shadow-xl"
+            className="w-full bg-vintage-teal hover:bg-vintage-teal/90 text-vintage-bg dark:text-vintage-bg-dark font-display py-5 px-6 rounded-2xl text-2xl uppercase tracking-widest shadow-lg hover:shadow-xl transition-all cursor-pointer"
           >
             Make My Favs
           </motion.button>
           <motion.button
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             onClick={() => handleInitialGenerate('week')}
-            className="w-full bg-vintage-red hover:bg-vintage-red/90 text-vintage-bg dark:text-white font-display py-4 px-6 rounded-2xl text-xl uppercase tracking-wider shadow-lg hover:shadow-xl"
+            className="w-full bg-vintage-red hover:bg-vintage-red/90 text-vintage-bg dark:text-white font-display py-5 px-6 rounded-2xl text-2xl uppercase tracking-widest shadow-lg hover:shadow-xl transition-all cursor-pointer"
           >
             Make My Week
           </motion.button>
           <motion.button
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             onClick={() => handleInitialGenerate('day')}
-            className="w-full bg-vintage-card dark:bg-vintage-card-dark border-2 border-vintage-teal/20 dark:border-vintage-teal-dark/20 text-vintage-teal dark:text-vintage-teal-dark font-display py-4 px-6 rounded-2xl text-xl uppercase tracking-wider shadow-sm hover:shadow-md"
+            className="w-full bg-vintage-card dark:bg-vintage-card-dark border-2 border-vintage-teal/20 dark:border-vintage-teal-dark/20 text-vintage-teal dark:text-vintage-teal-dark font-display py-5 px-6 rounded-2xl text-2xl uppercase tracking-widest shadow-sm hover:shadow-md transition-all cursor-pointer"
           >
             Make My Day
           </motion.button>
