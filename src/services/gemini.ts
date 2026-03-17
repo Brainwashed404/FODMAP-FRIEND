@@ -9,8 +9,13 @@ function getAI() {
     const apiKey = (typeof process !== 'undefined' && process.env.GEMINI_API_KEY) || 
                    (import.meta as any).env?.VITE_GEMINI_API_KEY;
     
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY is missing. Please set it in your environment variables.");
+    const isPlaceholder = !apiKey || 
+                         apiKey === 'MY_GEMINI_API_KEY' || 
+                         apiKey === 'undefined' || 
+                         apiKey === '';
+
+    if (isPlaceholder) {
+      throw new Error("Gemini API Key is missing. If you are on Vercel, please add GEMINI_API_KEY to your Project Settings > Environment Variables.");
     }
     aiInstance = new GoogleGenAI({ apiKey });
   }
