@@ -607,13 +607,12 @@ export default function MealPlanner() {
 
   if (!mealPlan && !loading) {
     return (
-      <div className="min-h-screen bg-vintage-bg dark:bg-vintage-bg-dark flex flex-col items-center p-4 transition-colors duration-200">
-        <div className="max-w-md w-full text-center mt-24">
+      <div className="min-h-screen bg-vintage-bg dark:bg-vintage-bg-dark flex flex-col justify-between items-center p-6 transition-colors duration-200">
+        <div className="max-w-md w-full text-center mt-12 sm:mt-24">
           <h1 className="text-5xl font-display text-vintage-red dark:text-vintage-red-dark tracking-wider mb-2">
             FODMAP FRIEND
           </h1>
           
-          {/* Small, non-invasive dark mode toggle under title */}
           <button
             onClick={() => setIsDarkMode(!isDarkMode)}
             className="p-2 rounded-full text-vintage-teal/40 dark:text-vintage-teal-dark/40 hover:text-vintage-red dark:hover:text-vintage-red-dark transition-all mx-auto"
@@ -623,7 +622,7 @@ export default function MealPlanner() {
           </button>
         </div>
         
-        <div className="max-w-md w-full space-y-6 mt-auto mb-16">
+        <div className="max-w-md w-full space-y-6 mb-12 sm:mb-16">
           <motion.button
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}

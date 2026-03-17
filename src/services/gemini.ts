@@ -1,7 +1,18 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { MealPlan, Meal } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+let aiInstance: GoogleGenAI | null = null;
+
+function getAI() {
+  if (!aiInstance) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY is missing. Please set it in your environment variables.");
+    }
+    aiInstance = new GoogleGenAI({ apiKey });
+  }
+  return aiInstance;
+}
 
 const schema = {
   type: Type.OBJECT,
@@ -62,6 +73,7 @@ const schema = {
 };
 
 export async function generateTodayMealPlan(dayName: string, preferences: string): Promise<MealPlan> {
+  const ai = getAI();
   const prompt = `Generate a 1-day meal plan for ${dayName} for someone suffering from Irritable Bowel Syndrome (IBS). 
 The meals MUST strictly follow the Low FODMAP foundations based on the latest clinical guidelines:
 - STRICTLY AVOID: 
@@ -117,6 +129,7 @@ Generate the 1-day plan and a grocery list for just this day.`;
 }
 
 export async function generateRemainingWeekMealPlan(todayPlan: MealPlan, preferences: string): Promise<MealPlan> {
+  const ai = getAI();
   const firstDay = todayPlan.days[0];
   const prompt = `Generate a 6-day meal plan for the rest of the week for someone suffering from IBS.
 The meals MUST strictly follow the Low FODMAP foundations based on the latest clinical guidelines:
@@ -177,6 +190,7 @@ Return the 6 days of meals, AND a categorised grocery list for the ENTIRE 7-day 
 }
 
 export async function regenerateMeal(currentMeal: Meal, day: string, preferences: string): Promise<Meal> {
+  const ai = getAI();
   const prompt = `The user wants to replace the following meal in their IBS meal plan for ${day}:
 ${JSON.stringify(currentMeal)}
 
